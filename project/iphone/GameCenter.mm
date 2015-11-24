@@ -5,6 +5,8 @@
 #define __STDC_FORMAT_MACROS // non needed in C, only in C++
 #include <inttypes.h>
 
+#define SYSTEM_VERSION_GREATER_THAN_OR_EQUAL_TO(v)  ([[[UIDevice currentDevice] systemVersion] compare:v options:NSNumericSearch] != NSOrderedAscending)
+
 extern "C" void sendGameCenterEvent (const char* event, const char* data1, const char* data2, const char* data3, const char* data4);
 
 
@@ -198,24 +200,31 @@ namespace gamecenter {
 					NSLog (@"Game Center: You are logged in to game center.");
 					registerForAuthenticationNotification();
 
-					[localPlayer generateIdentityVerificationSignatureWithCompletionHandler:^(NSURL *publicKeyUrl, NSData *signature, NSData *salt, uint64_t timestamp, NSError *error)
-					{
-						if(error != nil) {
-						    // some sort of error, can't authenticate with url/signature/salt
-						    // but authentication did succeed according to GameCenter so report it
-						    sendGameCenterEvent (AUTH_SUCCESS, "", "", "", "");
-						    return;
-						}
+					// generateIdentityVerificationSignatureWithCompletionHandler is only supported on iOS 7.0 and above
+					if (SYSTEM_VERSION_GREATER_THAN_OR_EQUAL_TO(@"7.0")) {
 
-						NSString* urlString = [publicKeyUrl absoluteString];
+						[localPlayer generateIdentityVerificationSignatureWithCompletionHandler:^(NSURL *publicKeyUrl, NSData *signature, NSData *salt, uint64_t timestamp, NSError *error)
+						{
+							if(error != nil) {
+							    // some sort of error, can't authenticate with url/signature/salt
+							    // but authentication did succeed according to GameCenter so report it
+							    sendGameCenterEvent (AUTH_SUCCESS, "", "", "", "");
+							    return;
+							}
 
-						char timestampBuf[256];
-                        snprintf(timestampBuf, sizeof timestampBuf, "%"PRIu64, timestamp);
-                        NSLog(@"SALT: %@", salt);
+							NSString* urlString = [publicKeyUrl absoluteString];
 
-						//[self verifyPlayer:localPlayer.playerID publicKeyUrl:publicKeyUrl signature:signature salt:salt timestamp:timestamp];
-						sendGameCenterEvent (AUTH_SUCCESS, [urlString UTF8String], [[signature base64EncodedStringWithOptions:0] UTF8String], [[salt base64EncodedStringWithOptions:0] UTF8String], timestampBuf);
-					}];
+							char timestampBuf[256];
+	                        snprintf(timestampBuf, sizeof timestampBuf, "%"PRIu64, timestamp);
+	                        NSLog(@"SALT: %@", salt);
+
+							//[self verifyPlayer:localPlayer.playerID publicKeyUrl:publicKeyUrl signature:signature salt:salt timestamp:timestamp];
+							sendGameCenterEvent (AUTH_SUCCESS, [urlString UTF8String], [[signature base64EncodedStringWithOptions:0] UTF8String], [[salt base64EncodedStringWithOptions:0] UTF8String], timestampBuf);
+						}];
+					} else {
+
+						sendGameCenterEvent (AUTH_SUCCESS, "", "", "", "");
+					}
 
 				} else if (viewcontroller != nil) {
 					
